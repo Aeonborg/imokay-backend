@@ -6,29 +6,17 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Supabase connection
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_KEY
-);
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
 
-// Find or create user by email
+// Find or create user
 app.post("/findOrCreate", async (req, res) => {
-  const { email, name, contactEmail, intervalHours, message } = req.body;
+  const { email, name, contactPerson, contactEmail, message, intervalHours } = req.body;
 
-  // Try to find existing user
-  const { data: existing } = await supabase
-    .from("users")
-    .select("*")
-    .eq("email", email)
-    .single();
+  const { data: existing } = await supabase.from("users").select("*").eq("email", email).single();
 
-  if (existing) {
-    return res.json({ userId: existing.id, user: existing });
-  }
+  if (existing) return res.json({ userId: existing.id, user: existing });
 
-  // If not found → require other fields to create
-  if (!name || !contactEmail || !intervalHours) {
+  if (!name || !contactPerson || !contactEmail || !intervalHours) {
     return res.status(400).json({ error: "Missing fields to create new user" });
   }
 
@@ -38,9 +26,10 @@ app.post("/findOrCreate", async (req, res) => {
       {
         name,
         email,
+        contactPerson,
         contactEmail,
+        message: message || "Please Contact User",
         intervalHours,
-        message: message || `Please check on ${name}.`,
         lastCheckin: new Date()
       }
     ])
@@ -53,30 +42,29 @@ app.post("/findOrCreate", async (req, res) => {
 // Check-in
 app.post("/checkin", async (req, res) => {
   const { userId } = req.body;
-  const { error } = await supabase
-    .from("users")
-    .update({ lastCheckin: new Date() })
-    .eq("id", userId);
-
+  const { error } = await supabase.from("users").update({ lastCheckin: new Date() }).eq("id", userId);
   if (error) return res.status(400).json({ error });
   res.json({ status: "okay" });
+});
+
+// Update interval
+app.post("/updateInterval", async (req, res) => {
+  const { userId, intervalHours } = req.body;
+  const { error } = await supabase.from("users").update({ intervalHours }).eq("id", userId);
+  if (error) return res.status(400).json({ error });
+  res.json({ success: true });
 });
 
 // Status
 app.get("/status/:userId", async (req, res) => {
   const { userId } = req.params;
-  const { data, error } = await supabase
-    .from("users")
-    .select("*")
-    .eq("id", userId)
-    .single();
-
+  const { data, error } = await supabase.from("users").select("*").eq("id", userId).single();
   if (error || !data) return res.status(404).json({ error: "User not found" });
 
   const diffHours = (Date.now() - new Date(data.lastCheckin)) / (1000 * 60 * 60);
   const status = diffHours > data.intervalHours ? "missed" : "okay";
 
-  res.json({ status, message: data.message });
+  res.json({ status, intervalHours: data.intervalHours, message: data.message });
 });
 
 const PORT = process.env.PORT || 3000;
