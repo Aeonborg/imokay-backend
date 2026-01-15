@@ -22,17 +22,15 @@ app.post("/findOrCreate", async (req, res) => {
 
   const { data, error } = await supabase
     .from("users")
-    .insert([
-      {
-        name,
-        email,
-        contactPerson,
-        contactEmail,
-        message: message || "Please Contact User",
-        intervalHours,
-        lastCheckin: new Date()
-      }
-    ])
+    .insert([{
+      name,
+      email,
+      contactPerson,
+      contactEmail,
+      message: message || "Please Contact User",
+      intervalHours,
+      lastCheckin: new Date()
+    }])
     .select();
 
   if (error) return res.status(400).json({ error });
