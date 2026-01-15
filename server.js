@@ -12,9 +12,26 @@ const supabase = createClient(
   process.env.SUPABASE_KEY
 );
 
-// Register user
-app.post("/setup", async (req, res) => {
-  const { name, email, contactEmail, intervalHours, message } = req.body;
+// Find or create user by email
+app.post("/findOrCreate", async (req, res) => {
+  const { email, name, contactEmail, intervalHours, message } = req.body;
+
+  // Try to find existing user
+  const { data: existing } = await supabase
+    .from("users")
+    .select("*")
+    .eq("email", email)
+    .single();
+
+  if (existing) {
+    return res.json({ userId: existing.id, user: existing });
+  }
+
+  // If not found → require other fields to create
+  if (!name || !contactEmail || !intervalHours) {
+    return res.status(400).json({ error: "Missing fields to create new user" });
+  }
+
   const { data, error } = await supabase
     .from("users")
     .insert([
@@ -30,7 +47,7 @@ app.post("/setup", async (req, res) => {
     .select();
 
   if (error) return res.status(400).json({ error });
-  res.json({ userId: data[0].id });
+  res.json({ userId: data[0].id, user: data[0] });
 });
 
 // Check-in
