@@ -1,49 +1,65 @@
-const express = require("express");
-const cors = require("cors");
-const app = express();
+import express from "express";
+import cors from "cors";
+import { createClient } from "@supabase/supabase-js";
 
+const app = express();
 app.use(cors());
 app.use(express.json());
 
-let users = {};
-let checkins = {};
+// Supabase connection
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_KEY
+);
 
 // Register user
-app.post("/setup", (req, res) => {
+app.post("/setup", async (req, res) => {
   const { name, email, contactEmail, intervalHours, message } = req.body;
-  const userId = Date.now().toString();
-  users[userId] = {
-    name,
-    email,
-    contactEmail,
-    intervalHours,
-    message: message || `Please check on ${name}.` // default if none provided
-  };
-  checkins[userId] = Date.now();
-  res.json({ userId });
+  const { data, error } = await supabase
+    .from("users")
+    .insert([
+      {
+        name,
+        email,
+        contactEmail,
+        intervalHours,
+        message: message || `Please check on ${name}.`,
+        lastCheckin: new Date()
+      }
+    ])
+    .select();
+
+  if (error) return res.status(400).json({ error });
+  res.json({ userId: data[0].id });
 });
 
-// User check-in
-app.post("/checkin", (req, res) => {
+// Check-in
+app.post("/checkin", async (req, res) => {
   const { userId } = req.body;
-  if (!users[userId]) {
-    return res.status(404).json({ error: "User not found" });
-  }
-  checkins[userId] = Date.now();
+  const { error } = await supabase
+    .from("users")
+    .update({ lastCheckin: new Date() })
+    .eq("id", userId);
+
+  if (error) return res.status(400).json({ error });
   res.json({ status: "okay" });
 });
 
-// Get status
-app.get("/status/:userId", (req, res) => {
+// Status
+app.get("/status/:userId", async (req, res) => {
   const { userId } = req.params;
-  if (!users[userId]) {
-    return res.status(404).json({ error: "User not found" });
-  }
-  const last = checkins[userId];
-  const interval = users[userId].intervalHours * 60 * 60 * 1000;
-  const status = Date.now() - last > interval ? "missed" : "okay";
-  const message = users[userId].message;
-  res.json({ status, message });
+  const { data, error } = await supabase
+    .from("users")
+    .select("*")
+    .eq("id", userId)
+    .single();
+
+  if (error || !data) return res.status(404).json({ error: "User not found" });
+
+  const diffHours = (Date.now() - new Date(data.lastCheckin)) / (1000 * 60 * 60);
+  const status = diffHours > data.intervalHours ? "missed" : "okay";
+
+  res.json({ status, message: data.message });
 });
 
 const PORT = process.env.PORT || 3000;
