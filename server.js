@@ -5,15 +5,20 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// In-memory storage (later you can replace with Supabase)
 let users = {};
 let checkins = {};
 
 // Register user
 app.post("/setup", (req, res) => {
-  const { name, email, contactEmail, intervalHours } = req.body;
+  const { name, email, contactEmail, intervalHours, message } = req.body;
   const userId = Date.now().toString();
-  users[userId] = { name, email, contactEmail, intervalHours };
+  users[userId] = {
+    name,
+    email,
+    contactEmail,
+    intervalHours,
+    message: message || `Please check on ${name}.` // default if none provided
+  };
   checkins[userId] = Date.now();
   res.json({ userId });
 });
@@ -37,9 +42,9 @@ app.get("/status/:userId", (req, res) => {
   const last = checkins[userId];
   const interval = users[userId].intervalHours * 60 * 60 * 1000;
   const status = Date.now() - last > interval ? "missed" : "okay";
-  res.json({ status });
+  const message = users[userId].message;
+  res.json({ status, message });
 });
 
-// Start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Backend running on port ${PORT}`));
