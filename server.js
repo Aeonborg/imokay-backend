@@ -1,3 +1,4 @@
+// server.js
 import express from "express"
 import cors from "cors"
 import { createClient } from "@supabase/supabase-js"
@@ -15,7 +16,12 @@ const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY
 app.post("/findOrCreate", async (req, res) => {
   const { email, name, contactPerson, contactEmail, message, intervalHours } = req.body
 
-  const { data: existing } = await supabase.from("users").select("*").eq("email", email).single()
+  const { data: existing } = await supabase
+    .from("users")
+    .select("*")
+    .eq("email", email)
+    .single()
+
   if (existing) return res.json({ userId: existing.id, user: existing })
 
   if (!name || !contactPerson || !contactEmail || !intervalHours) {
@@ -42,7 +48,11 @@ app.post("/findOrCreate", async (req, res) => {
 // Check-in
 app.post("/checkin", async (req, res) => {
   const { userId } = req.body
-  const { error } = await supabase.from("users").update({ lastcheckin: new Date() }).eq("id", userId)
+  const { error } = await supabase
+    .from("users")
+    .update({ lastcheckin: new Date() })
+    .eq("id", userId)
+
   if (error) return res.status(400).json({ error: error.message })
   res.json({ status: "okay" })
 })
@@ -50,24 +60,9 @@ app.post("/checkin", async (req, res) => {
 // Update interval
 app.post("/updateInterval", async (req, res) => {
   const { userId, intervalHours } = req.body
-  const { error } = await supabase.from("users").update({ intervalhours: intervalHours }).eq("id", userId)
-  if (error) return res.status(400).json({ error: error.message })
-  res.json({ success: true })
-})
+  const { error } = await supabase
+    .from("users")
+    .update({ intervalhours: intervalHours })
+    .eq("id", userId)
 
-// Status
-app.get("/status/:userId", async (req, res) => {
-  const { userId } = req.params
-  const { data, error } = await supabase.from("users").select("*").eq("id", userId).single()
-  if (error || !data) return res.status(404).json({ error: "User not found" })
-
-  if (!data.lastcheckin) return res.json({ status: "never checked in" })
-
-  const diffHours = (Date.now() - new Date(data.lastcheckin)) / (1000 * 60 * 60)
-  const status = diffHours > data.intervalhours ? "missed" : "okay"
-
-  res.json({ status, intervalHours: data.intervalhours, message: data.message })
-})
-
-const PORT = process.env.PORT || 3000
-app.listen(PORT, () => console.log(`Backend running on port ${PORT}`))
+  if (error) return res.status(400).
