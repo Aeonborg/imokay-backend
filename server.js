@@ -1,23 +1,25 @@
-import express from "express";
-import cors from "cors";
-import { createClient } from "@supabase/supabase-js";
+import express from "express"
+import cors from "cors"
+import { createClient } from "@supabase/supabase-js"
+import dotenv from "dotenv"
 
-const app = express();
-app.use(cors());
-app.use(express.json());
+dotenv.config()
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
+const app = express()
+app.use(cors())
+app.use(express.json())
+
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY)
 
 // Find or create user
 app.post("/findOrCreate", async (req, res) => {
-  const { email, name, contactPerson, contactEmail, message, intervalHours } = req.body;
+  const { email, name, contactPerson, contactEmail, message, intervalHours } = req.body
 
-  const { data: existing } = await supabase.from("users").select("*").eq("email", email).single();
-
-  if (existing) return res.json({ userId: existing.id, user: existing });
+  const { data: existing } = await supabase.from("users").select("*").eq("email", email).single()
+  if (existing) return res.json({ userId: existing.id, user: existing })
 
   if (!name || !contactPerson || !contactEmail || !intervalHours) {
-    return res.status(400).json({ error: "Missing fields to create new user" });
+    return res.status(400).json({ error: "Missing fields to create new user" })
   }
 
   const { data, error } = await supabase
@@ -25,45 +27,47 @@ app.post("/findOrCreate", async (req, res) => {
     .insert([{
       name,
       email,
-      contactPerson,
-      contactEmail,
+      contactperson: contactPerson,
+      contactemail: contactEmail,
       message: message || "Please Contact User",
-      intervalHours,
-      lastCheckin: new Date()
+      intervalhours: intervalHours,
+      lastcheckin: new Date()
     }])
-    .select();
+    .select()
 
-  if (error) return res.status(400).json({ error });
-  res.json({ userId: data[0].id, user: data[0] });
-});
+  if (error) return res.status(400).json({ error: error.message })
+  res.json({ userId: data[0].id, user: data[0] })
+})
 
 // Check-in
 app.post("/checkin", async (req, res) => {
-  const { userId } = req.body;
-  const { error } = await supabase.from("users").update({ lastCheckin: new Date() }).eq("id", userId);
-  if (error) return res.status(400).json({ error });
-  res.json({ status: "okay" });
-});
+  const { userId } = req.body
+  const { error } = await supabase.from("users").update({ lastcheckin: new Date() }).eq("id", userId)
+  if (error) return res.status(400).json({ error: error.message })
+  res.json({ status: "okay" })
+})
 
 // Update interval
 app.post("/updateInterval", async (req, res) => {
-  const { userId, intervalHours } = req.body;
-  const { error } = await supabase.from("users").update({ intervalHours }).eq("id", userId);
-  if (error) return res.status(400).json({ error });
-  res.json({ success: true });
-});
+  const { userId, intervalHours } = req.body
+  const { error } = await supabase.from("users").update({ intervalhours: intervalHours }).eq("id", userId)
+  if (error) return res.status(400).json({ error: error.message })
+  res.json({ success: true })
+})
 
 // Status
 app.get("/status/:userId", async (req, res) => {
-  const { userId } = req.params;
-  const { data, error } = await supabase.from("users").select("*").eq("id", userId).single();
-  if (error || !data) return res.status(404).json({ error: "User not found" });
+  const { userId } = req.params
+  const { data, error } = await supabase.from("users").select("*").eq("id", userId).single()
+  if (error || !data) return res.status(404).json({ error: "User not found" })
 
-  const diffHours = (Date.now() - new Date(data.lastCheckin)) / (1000 * 60 * 60);
-  const status = diffHours > data.intervalHours ? "missed" : "okay";
+  if (!data.lastcheckin) return res.json({ status: "never checked in" })
 
-  res.json({ status, intervalHours: data.intervalHours, message: data.message });
-});
+  const diffHours = (Date.now() - new Date(data.lastcheckin)) / (1000 * 60 * 60)
+  const status = diffHours > data.intervalhours ? "missed" : "okay"
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Backend running on port ${PORT}`));
+  res.json({ status, intervalHours: data.intervalhours, message: data.message })
+})
+
+const PORT = process.env.PORT || 3000
+app.listen(PORT, () => console.log(`Backend running on port ${PORT}`))
